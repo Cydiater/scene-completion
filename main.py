@@ -64,15 +64,15 @@ def conv(crop_np, crop_scale, comp_im):
     comp_np = np.asarray(comp_im)
     [h1, w1, _] = comp_np.shape
     [h2, w2, _] = crop_np.shape
-    comp_conv_jt = jt.array(comp_np).reindex(
+    comp_conv_jt = jt.array(comp_np, dtype=jt.float32).reindex(
             [h1 - h2 + 1, w1 - w2 + 1, h2, w2, 3],
             ['i0 + i2', 'i1 + i3', 'i4'])
-    crop_conv_jt = jt.array(crop_np).broadcast_var(comp_conv_jt)
-    conv_jt = -2 * comp_conv_jt * crop_conv_jt
-    conv_jt += comp_conv_jt * comp_conv_jt
-    conv_jt += crop_conv_jt * crop_conv_jt
-    conv_jt = conv_jt.sum([2, 3, 4])
-    return np.asarray(conv_jt)
+    crop_conv_jt = jt.array(crop_np, dtype=jt.float32).broadcast_var(comp_conv_jt)
+    error_jt = (comp_conv_jt - crop_conv_jt) ** 2
+    error_jt = error_jt.sum([2, 3, 4])
+    error_np = error_jt.fetch_sync()
+    (x, y) = np.unravel_index(error_np.argmin(), error_np.shape) 
+    return x, y, error_np[x, y]
 
 
 def main(args):
