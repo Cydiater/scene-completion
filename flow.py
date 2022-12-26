@@ -16,6 +16,6 @@ def select_patch_mask(dis_np, comp_np, crop_np):
     sourcecaps = (dis_np[:, :, 0] == 1) * 1e18
     sinkcaps = (dis_np[:, :, 0] == dis_np.max()) * 1e18
     g.add_grid_tedges(nodeids, sourcecaps=sourcecaps, sinkcaps=sinkcaps)
-    f = g.maxflow()
+    g.maxflow()
     patch_mask = g.get_grid_segments(nodeids)
-    return patch_mask, f
+    return patch_mask

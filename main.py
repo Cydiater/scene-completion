@@ -3,6 +3,7 @@ import os
 import numpy as np
 import jittor as jt
 from flow import select_patch_mask
+from blend import blend
 from PIL import Image
 
 
@@ -11,6 +12,7 @@ def parse_args():
     parser.add_argument("--scene", required=True)
     parser.add_argument("--mask", required=True)
     parser.add_argument("--comp", required=True)
+    parser.add_argument("--save", required=True)
     parser.add_argument("--vicinity_px", default=80)
     parser.add_argument("--crop_scale_min", default=0.5)
     parser.add_argument("--crop_scale_max", default=2.0)
@@ -58,7 +60,8 @@ def crop(scene_im, vici_np, dis_np):
     crop_np = np.asarray(scene_im) * vici_np
     return (crop_np[x_min:x_max + 1, y_min:y_max + 1],
             vici_np[x_min:x_max + 1, y_min:y_max + 1],
-            dis_np[x_min:x_max + 1, y_min:y_max + 1])
+            dis_np[x_min:x_max + 1, y_min:y_max + 1],
+            x_min, x_max, y_min, y_max)
 
 
 def conv(crop_np, crop_scale, comp_im, vici_np):
@@ -113,14 +116,24 @@ def main(args):
     scene_im = Image.open(args.scene)
     mask_im = Image.open(args.mask)
     comp_im = Image.open(args.comp)
+    scene_np = np.asarray(scene_im)
     vici_np, dis_np = vicinity_via_bfs(mask_im, args.vicinity_px)
-    crop_np, vici_np, dis_np = crop(scene_im, vici_np, dis_np)
+    crop_np, vici_np, dis_np, \
+        x_min, x_max, y_min, y_max = crop(scene_im, vici_np, dis_np)
     comp_np = select_comp(
             args.crop_scale_min, args.crop_scale_max,
             comp_im, crop_np, vici_np)
     patch_mask_np = select_patch_mask(dis_np, comp_np, crop_np)
+    patch_np = comp_np * (1 - np.expand_dims(patch_mask_np, axis=2))
+    global_mask_np = np.zeros(scene_np.shape[:2], dtype=np.int32)
+    global_mask_np[x_min:x_max + 1, y_min:y_max + 1] = 1 - patch_mask_np
+    global_patch_np = np.zeros(scene_np.shape, dtype=np.int32)
+    global_patch_np[x_min:x_max + 1, y_min:y_max + 1] = patch_np
+    output = blend(scene_np, global_mask_np, global_patch_np)
+    return output
 
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args)
+    output = main(args)
+    # todo: save output
