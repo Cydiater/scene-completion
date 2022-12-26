@@ -63,7 +63,7 @@ def conv(crop_np, crop_scale, comp_im):
     crop_np = np.asarray(crop_im)
     comp_np = np.asarray(comp_im)
     [h1, w1, _] = comp_np.shape
-    [h2, w2, _] = comp_np.shape
+    [h2, w2, _] = crop_np.shape
     comp_conv_jt = jt.array(comp_np).reindex(
             [h1 - h2 + 1, w1 - w2 + 1, h2, w2, 3],
             ['i0 + i2', 'i1 + i3', 'i4'])
