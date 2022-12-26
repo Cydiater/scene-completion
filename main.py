@@ -1,7 +1,8 @@
 import argparse
 import os
-from PIL import Image
 import numpy as np
+import jittor as jt
+from PIL import Image
 
 
 def parse_args():
@@ -61,7 +62,17 @@ def conv(crop_np, crop_scale, comp_im):
     crop_im = Image.fromarray(np.uint8(crop_np)).resize((nh, nw))
     crop_np = np.asarray(crop_im)
     comp_np = np.asarray(comp_im)
-    pass
+    [h1, w1, _] = comp_np.shape
+    [h2, w2, _] = comp_np.shape
+    comp_conv_jt = jt.array(comp_np).reindex(
+            [h1 - h2 + 1, w1 - w2 + 1, h2, w2, 3],
+            ['i0 + i2', 'i1 + i3', 'i4'])
+    crop_conv_jt = jt.array(crop_np).broadcast_var(comp_conv_jt)
+    conv_jt = -2 * comp_conv_jt * crop_conv_jt
+    conv_jt += comp_conv_jt * comp_conv_jt
+    conv_jt += crop_conv_jt * crop_conv_jt
+    conv_jt = conv_jt.sum([2, 3, 4])
+    return np.asarray(conv_jt)
 
 
 def main(args):
