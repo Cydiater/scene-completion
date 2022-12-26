@@ -64,15 +64,35 @@ def conv(crop_np, crop_scale, comp_im):
     comp_np = np.asarray(comp_im)
     [h1, w1, _] = comp_np.shape
     [h2, w2, _] = crop_np.shape
+    if h2 >= h1 or w2 >= w1:
+        return -1, -1, 1e18
     comp_conv_jt = jt.array(comp_np, dtype=jt.float32).reindex(
             [h1 - h2 + 1, w1 - w2 + 1, h2, w2, 3],
             ['i0 + i2', 'i1 + i3', 'i4'])
-    crop_conv_jt = jt.array(crop_np, dtype=jt.float32).broadcast_var(comp_conv_jt)
+    crop_conv_jt = jt.array(crop_np, dtype=jt.float32).broadcast_var(
+            comp_conv_jt)
     error_jt = (comp_conv_jt - crop_conv_jt) ** 2
     error_jt = error_jt.sum([2, 3, 4])
     error_np = error_jt.fetch_sync()
-    (x, y) = np.unravel_index(error_np.argmin(), error_np.shape) 
+    (x, y) = np.unravel_index(error_np.argmin(), error_np.shape)
     return x, y, error_np[x, y]
+
+
+def select_comp(crop_scale_min, crop_scale_max, comp_im, crop_np):
+    best_err = 1e18
+    bx, by, bs = None, None, None
+    for crop_scale in range(crop_scale_min, crop_scale_max, 0.1):
+        x, y, err = conv(crop_np, crop_scale, comp_im)
+        if err < best_err:
+            bx, by, bs = x, y, crop_scale
+            best_err = err
+    nh, nw = crop_np.shape[1] * bs, crop_np.shape[0] * bs
+    nh, nw = int(nh), int(nw)
+    comp_np = np.asarray(comp_im)
+    comp_np = comp_np[bx:bx + nh, by:by + nw]
+    comp_im = Image.fromarray(np.uint8(crop_np)).resize(
+            (crop_np.shapw[1], crop_np.shape[0]))
+    return np.asarray(comp_im)
 
 
 def main(args):
@@ -84,8 +104,8 @@ def main(args):
     comp_im = Image.open(args.comp)
     vici_np = vicinity_via_bfs(mask_im, args.vicinity_px)
     crop_np = crop(scene_im, vici_np)
-    for crop_scale in range(args.crop_scale_min, args.crop_scale_max, 0.1):
-        x, y, err = conv(crop_np, crop_scale, comp_im)
+    comp_np = select_comp(args.crop_scale_min, args.crop_scale_max, comp_im, crop_np)
+
 
 if __name__ == '__main__':
     args = parse_args()
