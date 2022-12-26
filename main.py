@@ -2,6 +2,7 @@ import argparse
 import os
 import numpy as np
 import jittor as jt
+from flow import select_patch_mask
 from PIL import Image
 
 
@@ -43,17 +44,21 @@ def vicinity_via_bfs(mask_im, vicinity_px):
                 continue
             vici_np[nx, ny] = vici_np[x, y] + 1
             q.append(np.array((nx, ny)))
+    dis_np = vici_np
     vici_np = (vici_np > 0) * 1
-    return vici_np
+    return vici_np, dis_np
 
 
-def crop(scene_im, vici_np):
+def crop(scene_im, vici_np, dis_np):
     xs, ys = np.where(vici_np == 1)
     x_min, x_max = xs.min(), xs.max()
     y_min, y_max = ys.min(), ys.max()
     vici_np = np.expand_dims(vici_np, axis=2)
+    dis_np = np.expand_dims(dis_np, axis=2)
     crop_np = np.asarray(scene_im) * vici_np
-    return crop_np[x_min:x_max + 1, y_min:y_max + 1], vici_np[x_min:x_max + 1, y_min:y_max + 1]
+    return (crop_np[x_min:x_max + 1, y_min:y_max + 1],
+            vici_np[x_min:x_max + 1, y_min:y_max + 1],
+            dis_np[x_min:x_max + 1, y_min:y_max + 1])
 
 
 def conv(crop_np, crop_scale, comp_im, vici_np):
@@ -108,9 +113,12 @@ def main(args):
     scene_im = Image.open(args.scene)
     mask_im = Image.open(args.mask)
     comp_im = Image.open(args.comp)
-    vici_np = vicinity_via_bfs(mask_im, args.vicinity_px)
-    crop_np, vici_np = crop(scene_im, vici_np)
-    comp_np = select_comp(args.crop_scale_min, args.crop_scale_max, comp_im, crop_np, vici_np)
+    vici_np, dis_np = vicinity_via_bfs(mask_im, args.vicinity_px)
+    crop_np, vici_np, dis_np = crop(scene_im, vici_np, dis_np)
+    comp_np = select_comp(
+            args.crop_scale_min, args.crop_scale_max,
+            comp_im, crop_np, vici_np)
+    patch_mask_np = select_patch_mask(dis_np, comp_np, crop_np)
 
 
 if __name__ == '__main__':
