@@ -6,6 +6,10 @@ from flow import select_patch_mask
 from blend import blend
 from PIL import Image
 
+if jt.has_cuda:
+    jt.flags.use_cuda = 1
+print(jt.compiler.has_cuda)
+print(jt.flags.use_cuda)
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -96,7 +100,6 @@ def select_comp(crop_scale_min, crop_scale_max, comp_im, crop_np, vici_np):
     bx, by, bs = None, None, None
     for crop_scale in np.arange(crop_scale_min, crop_scale_max, 0.1):
         x, y, err = conv(crop_np, crop_scale, comp_im, vici_np)
-        print(x, y, err, crop_scale)
         if err < best_err:
             bx, by, bs = x, y, crop_scale
             best_err = err
@@ -128,12 +131,15 @@ def main(args):
     global_mask_np = np.zeros(scene_np.shape[:2], dtype=np.int32)
     global_mask_np[x_min:x_max + 1, y_min:y_max + 1] = 1 - patch_mask_np
     global_patch_np = np.zeros(scene_np.shape, dtype=np.int32)
-    global_patch_np[x_min:x_max + 1, y_min:y_max + 1] = patch_np
+    global_patch_np[x_min:x_max + 1, y_min:y_max + 1] = comp_np
     output = blend(scene_np, global_mask_np, global_patch_np)
+    mask = np.expand_dims(global_mask_np, axis=2)
+    output = scene_np * (1 - mask) + output * mask
     return output
 
 
 if __name__ == '__main__':
     args = parse_args()
     output = main(args)
-    # todo: save output
+    output = Image.fromarray(np.uint8(output))
+    output.save(args.save)
