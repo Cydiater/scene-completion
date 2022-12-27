@@ -18,8 +18,8 @@ def parse_args():
     parser.add_argument("--comp", required=True)
     parser.add_argument("--save", required=True)
     parser.add_argument("--vicinity_px", default=80)
-    parser.add_argument("--crop_scale_min", default=0.7)
-    parser.add_argument("--crop_scale_max", default=1.4)
+    parser.add_argument("--crop_scale_min", default=0.8)
+    parser.add_argument("--crop_scale_max", default=1.2)
     args = parser.parse_args()
     return args
 
@@ -144,5 +144,5 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
     output = main(args)
-    output = Image.fromarray(np.uint8(output))
+    output = Image.fromarray(np.uint8(np.clip(output, 0, 255)))
     output.save(args.save)

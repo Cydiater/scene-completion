@@ -1,16 +1,12 @@
 import numpy as np
 import cupy
-from scipy.sparse import lil_matrix, diags
 from cupyx.scipy.sparse import csr_matrix
-from cupyx.scipy.sparse.linalg import spsolve
+from cupyx.scipy.sparse.linalg import cg
 from tqdm import tqdm
 
 def blend(scene_np, mask_np, patch_np):
     n = mask_np.sum()
-    A = lil_matrix((n, n), dtype=np.int32)
-    br = np.zeros(n, dtype=np.int32)
-    bg = np.zeros(n, dtype=np.int32)
-    bb = np.zeros(n, dtype=np.int32)
+    b = np.zeros((n, 3), dtype=np.int32)
     patch_np = np.int32(patch_np)
     idx_np = np.zeros(mask_np.shape, dtype=np.int32)
     xs, ys = np.where(mask_np == 1)
@@ -19,6 +15,10 @@ def blend(scene_np, mask_np, patch_np):
     dx = np.array([0, 1, 0, -1])
     dy = np.array([1, 0, -1, 0])
     xmax, ymax = mask_np.shape[:2]
+    diag = np.zeros(n, dtype=np.int32)
+    spxs = []
+    spys = []
+    spdata = []
     for idx, (x, y) in tqdm(enumerate(zip(xs, ys))):
         for nx, ny in zip(dx, dy):
             nx = nx + x
@@ -27,23 +27,26 @@ def blend(scene_np, mask_np, patch_np):
                 continue
             if ny < 0 or ny >= ymax:
                 continue
-            A[idx, idx] += 1
-            br[idx] += patch_np[x, y, 0] - patch_np[nx, ny, 0]
-            bg[idx] += patch_np[x, y, 1] - patch_np[nx, ny, 1]
-            bb[idx] += patch_np[x, y, 2] - patch_np[nx, ny, 2]
+            diag[idx] += 1
+            b[idx] += patch_np[x, y] - patch_np[nx, ny]
             if mask_np[nx, ny] == 1:
                 nidx = idx_np[nx, ny]
-                A[idx, nidx] = -1
+                spxs.append(idx)
+                spys.append(nidx)
+                spdata.append(-1)
             if mask_np[nx, ny] == 0:
-                br[idx] += scene_np[nx, ny, 0]
-                bg[idx] += scene_np[nx, ny, 1]
-                bb[idx] += scene_np[nx, ny, 2]
-    A = A.tocsr()
-    A = csr_matrix(A, dtype=np.float32)
-    Xr, Xg, Xb = spsolve(A, cupy.array(br, dtype=np.float32)), spsolve(A, cupy.array(bg, dtype=np.float32)), spsolve(A, cupy.array(bb, dtype=np.float32))
+                b[idx] += scene_np[nx, ny]
+    spdata = np.concatenate((spdata, diag))
+    spdata = np.concatenate((spdata, spdata, spdata))
+    spxs = np.concatenate((np.array(spxs), np.arange(n)))
+    spxs = np.concatenate((spxs, spxs + n, spxs + n + n))
+    spys = np.concatenate((np.array(spys), np.arange(n)))
+    spys = np.concatenate((spys, spys + n, spys + n + n))
+    A = csr_matrix((cupy.array(spdata), (cupy.array(spxs), cupy.array(spys))), shape=(n * 3, n * 3), dtype=np.float32)
+    (X, _) = cg(A, cupy.array(np.concatenate((b[:, 0], b[:, 1], b[:, 2])), dtype=np.float32))
     res = np.zeros(scene_np.shape, dtype=np.int32)
     for idx, (x, y) in enumerate(zip(xs, ys)):
-        res[x, y, 0] = Xr[idx]
-        res[x, y, 1] = Xg[idx]
-        res[x, y, 2] = Xb[idx]
+        res[x, y, 0] = X[idx]
+        res[x, y, 1] = X[idx + n]
+        res[x, y, 2] = X[idx + n + n]
     return res
