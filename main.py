@@ -18,8 +18,8 @@ def parse_args():
     parser.add_argument("--comp", required=True)
     parser.add_argument("--save", required=True)
     parser.add_argument("--vicinity_px", default=80)
-    parser.add_argument("--crop_scale_min", default=0.5)
-    parser.add_argument("--crop_scale_max", default=2.0)
+    parser.add_argument("--crop_scale_min", default=0.7)
+    parser.add_argument("--crop_scale_max", default=1.4)
     args = parser.parse_args()
     return args
 
@@ -55,8 +55,11 @@ def vicinity_via_bfs(mask_im, vicinity_px):
     return vici_np, dis_np
 
 
-def crop(scene_im, vici_np, dis_np):
+def crop(scene_im, vici_np, dis_np, mask_im):
+    mask_np = np.asarray(mask_im.convert('1'))
     xs, ys = np.where(vici_np == 1)
+    _xs, _ys = np.where(mask_np == False)
+    xs, ys = np.concatenate((xs, _xs)), np.concatenate((ys, _ys))
     x_min, x_max = xs.min(), xs.max()
     y_min, y_max = ys.min(), ys.max()
     vici_np = np.expand_dims(vici_np, axis=2)
@@ -122,7 +125,7 @@ def main(args):
     scene_np = np.asarray(scene_im)
     vici_np, dis_np = vicinity_via_bfs(mask_im, args.vicinity_px)
     crop_np, vici_np, dis_np, \
-        x_min, x_max, y_min, y_max = crop(scene_im, vici_np, dis_np)
+        x_min, x_max, y_min, y_max = crop(scene_im, vici_np, dis_np, mask_im)
     comp_np = select_comp(
             args.crop_scale_min, args.crop_scale_max,
             comp_im, crop_np, vici_np)

@@ -14,7 +14,8 @@ def run(batch_name):
         os.mkdir(save_dir)
     for idx in tqdm(range(20)):
         comp_path = os.path.join('./data', batch_name, 'result_img0{:02d}.jpg'.format(idx + 1))
-        assert os.path.exists(comp_path)
+        if not os.path.exists(comp_path):
+            continue
         save_path = os.path.join('./output', batch_name, 'out_{:02d}.jpg'.format(idx + 1))
         subprocess.Popen(["python", "main.py", "--scene", scene_path, "--comp", comp_path, "--mask", mask_path, "--save", save_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
         if dry_run:
